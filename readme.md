@@ -8,9 +8,9 @@
 
 <br/>
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/NitinRanganath.vscode-coolify?style=for-the-badge&logo=visual-studio-code&label=VS%20Code&color=007ACC)](https://marketplace.visualstudio.com/items?itemName=NitinRanganath.vscode-coolify)
-[![Open VSX](https://img.shields.io/open-vsx/v/NitinRanganath/vscode-coolify?style=for-the-badge&label=Open%20VSX&color=C160EF)](https://open-vsx.org/extension/NitinRanganath/vscode-coolify)
-[![Downloads](https://img.shields.io/visual-studio-marketplace/d/NitinRanganath.vscode-coolify?style=for-the-badge&color=4CAF50)](https://marketplace.visualstudio.com/items?itemName=NitinRanganath.vscode-coolify)
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code%20Marketplace-Coming%20Soon-grey?style=for-the-badge&logo=visual-studio-code&color=555)](https://github.com/itsnitinr/coolify-vscode-extension)
+[![Open VSX](https://img.shields.io/badge/Open%20VSX-Coming%20Soon-grey?style=for-the-badge&color=555)](https://github.com/itsnitinr/coolify-vscode-extension)
+[![GitHub Release](https://img.shields.io/github/v/release/itsnitinr/coolify-vscode-extension?style=for-the-badge&logo=github&label=Latest%20Release&color=238636)](https://github.com/itsnitinr/coolify-vscode-extension/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 <br/>
@@ -84,35 +84,117 @@ Right-click any tree item for **Start / Stop / Restart / Deploy / Backup** — i
 
 ## 🏁 Getting Started
 
-### 1 · Install
+> [!IMPORTANT]
+> **The extension is not yet published to the VS Code Marketplace or Open VSX.** Install it manually using one of the methods below — takes under 2 minutes.
 
-<details>
-<summary><b>VS Code / Windsurf</b> — Marketplace</summary>
+### Method 1 — Build from source (recommended)
 
-Press `Ctrl+Shift+X`, search for **Coolify Deployments**, click Install.
-
-Or install from CLI:
+Requires [Node.js 20+](https://nodejs.org) and [pnpm](https://pnpm.io).
 
 ```bash
-code --install-extension NitinRanganath.vscode-coolify
+# 1. Clone the repo
+git clone https://github.com/itsnitinr/coolify-vscode-extension.git
+cd coolify-vscode-extension
+
+# 2. Install dependencies
+pnpm install
+
+# 3. Package into a .vsix file
+pnpm add -g @vscode/vsce
+vsce package --no-dependencies
+# → creates  vscode-coolify-2.0.0.vsix
+```
+
+Then install the generated `.vsix` file using **Method 2** below.
+
+---
+
+### Method 2 — Install a `.vsix` file
+
+Once you have a `.vsix` file (built above or downloaded from [GitHub Releases](https://github.com/itsnitinr/coolify-vscode-extension/releases)):
+
+<details open>
+<summary><b>VS Code</b></summary>
+
+**Option A — Command Palette** (easiest):
+
+```
+Cmd/Ctrl+Shift+P  →  Extensions: Install from VSIX…  →  select the file
+```
+
+**Option B — CLI**:
+
+```bash
+code --install-extension vscode-coolify-2.0.0.vsix
 ```
 
 </details>
 
 <details>
-<summary><b>Cursor / Trae / VSCodium</b> — Open VSX or manual .vsix</summary>
+<summary><b>Cursor</b></summary>
 
-**Option A — Open VSX** (if your editor supports it):
-Search "Coolify Deployments" in the Extensions panel.
+```
+Cmd/Ctrl+Shift+P  →  Extensions: Install from VSIX…  →  select the file
+```
 
-**Option B — Manual `.vsix`** (always works):
+Or from the CLI:
 
-1. Download the latest `.vsix` from [GitHub Releases →](https://github.com/itsnitinr/coolify-vscode-extension/releases)
-2. `Cmd/Ctrl+Shift+P` → **"Extensions: Install from VSIX…"**
+```bash
+cursor --install-extension vscode-coolify-2.0.0.vsix
+```
 
 </details>
 
-### 2 · Configure
+<details>
+<summary><b>Windsurf</b></summary>
+
+```
+Cmd/Ctrl+Shift+P  →  Extensions: Install from VSIX…  →  select the file
+```
+
+Or from the CLI:
+
+```bash
+windsurf --install-extension vscode-coolify-2.0.0.vsix
+```
+
+</details>
+
+<details>
+<summary><b>Trae</b></summary>
+
+```
+Cmd/Ctrl+Shift+P  →  Extensions: Install from VSIX…  →  select the file
+```
+
+Or from the CLI:
+
+```bash
+trae --install-extension vscode-coolify-2.0.0.vsix
+```
+
+</details>
+
+<details>
+<summary><b>VSCodium</b></summary>
+
+VSCodium supports Open VSX. Once the extension is published there, search in Extensions panel. For now, use the VSIX method:
+
+```
+Cmd/Ctrl+Shift+P  →  Extensions: Install from VSIX…  →  select the file
+```
+
+Or CLI:
+
+```bash
+codium --install-extension vscode-coolify-2.0.0.vsix
+```
+
+</details>
+
+---
+
+### Step 2 · Configure
 
 ```
 Cmd/Ctrl+Shift+P  →  Coolify: Configure
@@ -120,7 +202,7 @@ Cmd/Ctrl+Shift+P  →  Coolify: Configure
 
 Enter your **Coolify server URL** (e.g. `https://coolify.my-server.com`) and your **API token** from Coolify → Profile → API Keys.
 
-### 3 · Deploy 🎉
+### Step 3 · Deploy 🎉
 
 Your apps appear instantly. Hit `Cmd+Shift+D` or click the 🚀 button next to any app.
 
