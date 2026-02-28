@@ -1,8 +1,8 @@
 {
   "name": "vscode-coolify",
   "displayName": "Coolify Deployments",
-  "description": "Track and deploy your Coolify applications right from Visual Studio Code",
-  "version": "1.0.1",
+  "description": "Deploy, manage, and monitor Coolify applications, databases, and servers. Works in VS Code, Cursor, Trae, Windsurf, VSCodium, and any Open VSX-compatible editor.",
+  "version": "2.0.0",
   "author": {
     "name": "Nitin Ranganath",
     "email": "nitinranganath@gmail.com",
@@ -17,12 +17,44 @@
   "engines": {
     "vscode": "^1.74.0"
   },
-  "categories": [
-    "Other"
+  "extensionKind": [
+    "ui",
+    "workspace"
   ],
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Debuggers"
+  ],
+  "keywords": [
+    "coolify",
+    "deploy",
+    "devops",
+    "self-hosted",
+    "docker",
+    "server",
+    "deployment",
+    "open-vsx",
+    "cursor",
+    "windsurf",
+    "trae"
+  ],
+  "sponsor": {
+    "url": "https://github.com/sponsors/itsnitinr"
+  },
   "activationEvents": [
     "onView:coolify-deployments"
   ],
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Requires a real network connection to a Coolify server (not supported in browser-based/virtual workspaces)."
+    },
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Coolify only makes outbound API calls to your server — it does not execute workspace code."
+    }
+  },
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -37,19 +69,117 @@
     "views": {
       "coolify-sidebar": [
         {
-          "type": "webview",
           "id": "coolify-deployments",
           "name": "Coolify",
-          "visibility": "visible"
+          "type": "tree"
         }
       ]
     },
+    "configuration": {
+      "title": "Coolify",
+      "properties": {
+        "coolify.serverUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Your Coolify server URL (e.g. http://my-server:8000). Leave empty to use the interactive setup wizard."
+        },
+        "coolify.refreshInterval": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 2000,
+          "description": "How often (in milliseconds) to poll Coolify for status updates. Default: 5000ms."
+        },
+        "coolify.defaultApplication": {
+          "type": "string",
+          "default": "",
+          "description": "UUID of the application to pin to the Status Bar. Leave empty to show the first 2 apps."
+        },
+        "coolify.enableNotifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show VS Code notification toasts when deployments complete or fail."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "coolify.startDeployment",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.refreshApplications",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r",
+        "when": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.viewApplicationLogs",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.cancelDeployment",
+        "key": "ctrl+shift+x",
+        "mac": "cmd+shift+x",
+        "when": "coolify.isConfigured"
+      }
+    ],
     "menus": {
       "view/title": [
         {
+          "command": "coolify.refreshApplications",
+          "when": "view == coolify-deployments && coolify.isConfigured",
+          "group": "navigation@1"
+        },
+        {
           "command": "coolify.reconfigure",
           "when": "view == coolify-deployments && coolify.isConfigured",
-          "group": "navigation"
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "coolify.startDeployment",
+          "when": "view == coolify-deployments && viewItem =~ /^coolifyApp_/",
+          "group": "inline@1"
+        },
+        {
+          "command": "coolify.restartApplication",
+          "when": "view == coolify-deployments && viewItem =~ /^coolifyApp_/",
+          "group": "inline@2"
+        },
+        {
+          "command": "coolify.viewApplicationLogs",
+          "when": "view == coolify-deployments && viewItem =~ /^coolifyApp_/",
+          "group": "inline@3"
+        },
+        {
+          "command": "coolify.startApplication",
+          "when": "view == coolify-deployments && viewItem == coolifyApp_stopped",
+          "group": "coolify@1"
+        },
+        {
+          "command": "coolify.stopApplication",
+          "when": "view == coolify-deployments && viewItem == coolifyApp_running",
+          "group": "coolify@2"
+        },
+        {
+          "command": "coolify.restartApplication",
+          "when": "view == coolify-deployments && viewItem =~ /^coolifyApp_/",
+          "group": "coolify@3"
+        },
+        {
+          "command": "coolify.cancelDeployment",
+          "when": "view == coolify-deployments && viewItem == coolifyApp_deploying",
+          "group": "coolify@4"
+        },
+        {
+          "command": "coolify.createDatabaseBackup",
+          "when": "view == coolify-deployments && viewItem =~ /^coolifyDatabase_/",
+          "group": "inline@1"
         }
       ]
     },
@@ -63,17 +193,54 @@
         "command": "coolify.reconfigure",
         "title": "Coolify: Reconfigure",
         "enablement": "coolify.isConfigured",
-        "icon": "$(refresh)"
+        "icon": "$(settings-gear)"
       },
       {
         "command": "coolify.refreshApplications",
-        "title": "Coolify: Refresh Applications",
+        "title": "Coolify: Refresh",
         "icon": "$(refresh)",
         "enablement": "coolify.isConfigured"
       },
       {
         "command": "coolify.startDeployment",
-        "title": "Coolify: Start Deployment",
+        "title": "Coolify: Deploy",
+        "icon": "$(rocket)",
+        "enablement": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.cancelDeployment",
+        "title": "Coolify: Cancel Deployment",
+        "icon": "$(stop-circle)",
+        "enablement": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.startApplication",
+        "title": "Coolify: Start Application",
+        "icon": "$(play)",
+        "enablement": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.stopApplication",
+        "title": "Coolify: Stop Application",
+        "icon": "$(debug-stop)",
+        "enablement": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.restartApplication",
+        "title": "Coolify: Restart Application",
+        "icon": "$(sync)",
+        "enablement": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.viewApplicationLogs",
+        "title": "Coolify: View Application Logs",
+        "icon": "$(output)",
+        "enablement": "coolify.isConfigured"
+      },
+      {
+        "command": "coolify.createDatabaseBackup",
+        "title": "Coolify: Create Database Backup",
+        "icon": "$(save)",
         "enablement": "coolify.isConfigured"
       }
     ]

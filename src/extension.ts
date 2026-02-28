@@ -1,203 +1,101 @@
 import * as vscode from 'vscode';
 import { ConfigurationManager } from './managers/ConfigurationManager';
-import { CoolifyWebViewProvider } from './providers/CoolifyWebViewProvider';
-import { isValidUrl, normalizeUrl } from './utils/urlValidator';
-import { CoolifyService } from './services/CoolifyService';
+import { StatusBarManager } from './managers/StatusBarManager';
+import { CoolifyTreeDataProvider } from './providers/CoolifyTreeDataProvider';
+import { registerCommands } from './commands';
 
-let webviewProvider: CoolifyWebViewProvider | undefined;
+// ─── Editor Detection ─────────────────────────────────────────────────────────
+// Cursor, Trae, Windsurf, VSCodium, and others all expose their name via
+// vscode.env.appName. We use this to tailor messaging without breaking anything.
+function detectEditorName(): { name: string; isCursor: boolean; isTrae: boolean; isWindsurf: boolean; isVSCodium: boolean } {
+  const appName = vscode.env.appName ?? '';
+  const lower = appName.toLowerCase();
+  return {
+    name: appName,
+    isCursor: lower.includes('cursor'),
+    isTrae: lower.includes('trae'),
+    isWindsurf: lower.includes('windsurf'),
+    isVSCodium: lower.includes('vscodium') || lower.includes('codium'),
+  };
+}
+
+let treeDataProvider: CoolifyTreeDataProvider | undefined;
+let statusBarManager: StatusBarManager | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
-  // Initialize managers and providers
-  const configManager = new ConfigurationManager(context);
-  webviewProvider = new CoolifyWebViewProvider(
-    context.extensionUri,
-    configManager
-  );
+  // ─── Detect host editor ───────────────────────────────────────────────────
+  const editor = detectEditorName();
+  console.log(`[Coolify] Running in: ${editor.name}`);
 
-  // Register the webview provider
-  const webviewView = vscode.window.registerWebviewViewProvider(
-    'coolify-deployments',
-    webviewProvider
-  );
-
-  // Function to update configuration state
-  async function updateConfigurationState() {
-    const isConfigured = await configManager.isConfigured();
-    await vscode.commands.executeCommand(
-      'setContext',
-      'coolify.isConfigured',
-      isConfigured
-    );
-
-    // Update the webview if it exists
-    webviewProvider?.updateView();
+  // ─── Remote environment advisory ─────────────────────────────────────────
+  // Cursor, Windsurf, and VS Code all support remote/SSH/Dev Container sessions.
+  // When running remotely, the extension host runs ON the remote machine.
+  // Coolify must be reachable from that machine, not just from the user's laptop.
+  const isRemote = vscode.env.remoteName !== undefined && vscode.env.remoteName !== '';
+  const remoteAdvisoryShown = context.globalState.get<boolean>('coolify.remoteAdvisoryShown');
+  if (isRemote && !remoteAdvisoryShown) {
+    vscode.window.showInformationMessage(
+      `Coolify: You are in a remote session (${vscode.env.remoteName}). ` +
+      'Make sure your Coolify server is reachable FROM this remote host.',
+      'Got it'
+    ).then(() => {
+      context.globalState.update('coolify.remoteAdvisoryShown', true);
+    });
   }
 
-  // Initial configuration state
-  updateConfigurationState();
+  // ─── Core managers ────────────────────────────────────────────────────────
+  const configManager = new ConfigurationManager(context);
 
-  // Register commands
-  const configureCommand = vscode.commands.registerCommand(
-    'coolify.configure',
-    async () => {
-      try {
-        // Step 1: Get and validate server URL
-        const serverUrl = await vscode.window.showInputBox({
-          ignoreFocusOut: true,
-          prompt: 'Enter your Coolify server URL along with the port',
-          placeHolder: 'e.g., http://127.0.0.1:8000',
-          validateInput: (value) => {
-            if (!value) {
-              return 'Server URL is required';
-            }
-            if (!isValidUrl(value)) {
-              return 'Invalid URL format';
-            }
-            return null;
-          },
-        });
+  // ─── Native TreeView ──────────────────────────────────────────────────────
+  treeDataProvider = new CoolifyTreeDataProvider(configManager);
 
-        if (!serverUrl) {
-          return;
-        }
+  const treeView = vscode.window.createTreeView('coolify-deployments', {
+    treeDataProvider,
+    showCollapseAll: true,
+  });
 
-        const normalizedUrl = normalizeUrl(serverUrl);
+  // ─── Status Bar ───────────────────────────────────────────────────────────
+  statusBarManager = new StatusBarManager(configManager);
 
-        // Test server connection
-        const testService = new CoolifyService(normalizedUrl, '');
-        const isReachable = await testService.testConnection();
-
-        if (!isReachable) {
-          throw new Error(
-            'Could not connect to the Coolify server. Please check the URL and try again.'
-          );
-        }
-
-        // Step 2: Get and validate access token
-        const token = await vscode.window.showInputBox({
-          ignoreFocusOut: true,
-          prompt: 'Enter your Coolify access token',
-          password: true,
-          placeHolder: 'Your Coolify API token',
-          validateInput: (value) => {
-            if (!value) {
-              return 'Access token is required';
-            }
-            return null;
-          },
-        });
-
-        if (!token) {
-          return; // User cancelled
-        }
-
-        // Verify token
-        const service = new CoolifyService(normalizedUrl, token);
-        const isValid = await service.verifyToken();
-
-        if (!isValid) {
-          throw new Error(
-            'Invalid access token. Please check your token and try again.'
-          );
-        }
-
-        // Save configuration
-        await configManager.setServerUrl(normalizedUrl);
-        await configManager.setToken(token);
-        await updateConfigurationState();
-
-        vscode.window.showInformationMessage(
-          'Coolify for VSCode configured successfully!'
-        );
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          error instanceof Error
-            ? error.message
-            : 'Configuration failed. Please try again.'
-        );
-      }
-    }
-  );
-
-  const reconfigureCommand = vscode.commands.registerCommand(
-    'coolify.reconfigure',
-    async () => {
-      const result = await vscode.window.showWarningMessage(
-        'This will clear your existing configuration. Do you want to continue?',
-        'Yes',
-        'No'
-      );
-
-      if (result === 'Yes') {
-        await configManager.clearConfiguration();
-        await updateConfigurationState();
-        await vscode.commands.executeCommand('coolify.configure');
-      }
-    }
-  );
-
-  const refreshApplicationsCommand = vscode.commands.registerCommand(
-    'coolify.refreshApplications',
-    async () => {
-      if (webviewProvider) {
-        await webviewProvider.refreshData();
-      }
-    }
-  );
-
-  const startDeploymentCommand = vscode.commands.registerCommand(
-    'coolify.startDeployment',
-    async () => {
-      try {
-        if (!webviewProvider) {
-          vscode.window.showErrorMessage('Coolify provider not initialized');
-          return;
-        }
-        const applications = await webviewProvider.getApplications();
-
-        if (!applications || applications.length === 0) {
-          vscode.window.showInformationMessage('No applications found');
-          return;
-        }
-
-        const selected = await vscode.window.showQuickPick(
-          applications.map((app) => ({
-            label: app.name,
-            description: app.status,
-            detail: `Status: ${app.status}`,
-            id: app.id,
-          })),
-          {
-            placeHolder: 'Select an application to deploy',
-            title: 'Start Deployment',
-          }
-        );
-
-        if (selected) {
-          await webviewProvider.deployApplication(selected.id);
-        }
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          error instanceof Error ? error.message : 'Failed to start deployment'
-        );
-      }
-    }
-  );
-
-  // Add to subscriptions
   context.subscriptions.push(
-    webviewView,
-    configureCommand,
-    reconfigureCommand,
-    refreshApplicationsCommand,
-    startDeploymentCommand,
-    webviewProvider
+    treeView,
+    { dispose: () => treeDataProvider?.dispose() },
+    { dispose: () => statusBarManager?.dispose() },
   );
+
+  // ─── Configuration state helper ───────────────────────────────────────────
+  async function updateConfigurationState() {
+    const isConfigured = await configManager.isConfigured();
+    await vscode.commands.executeCommand('setContext', 'coolify.isConfigured', isConfigured);
+
+    if (isConfigured) {
+      await treeDataProvider?.loadData();
+      await statusBarManager?.initialize();
+    } else {
+      treeDataProvider?.refresh();
+    }
+  }
+
+  // ─── Boot ─────────────────────────────────────────────────────────────────
+  updateConfigurationState().then(() => {
+    treeDataProvider?.initialize();
+    statusBarManager?.initialize();
+  });
+
+  // ─── Listen for settings changes ─────────────────────────────────────────
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e: vscode.ConfigurationChangeEvent) => {
+      if (e.affectsConfiguration('coolify')) {
+        updateConfigurationState();
+      }
+    })
+  );
+
+  // ─── Register all commands ────────────────────────────────────────────────
+  registerCommands(context, configManager, treeDataProvider, updateConfigurationState);
 }
 
 export function deactivate() {
-  // Clean up any cached applications and deployment data
-  if (webviewProvider) {
-    webviewProvider.dispose();
-  }
+  treeDataProvider?.dispose();
+  statusBarManager?.dispose();
 }

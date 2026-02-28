@@ -1,0 +1,37 @@
+# Files NOT to include in the packaged .vsix
+# A lean package installs faster and passes Marketplace size limits
+
+# ─── Dev tooling ──────────────────────────────────────────────────────────────
+.vscode/**
+.github/**
+.eslintrc.json
+eslint.config.mjs
+esbuild.js
+tsconfig.json
+**/tsconfig*.json
+*.sh
+
+# ─── Source (we ship dist/ only) ─────────────────────────────────────────────
+src/**
+out/**
+
+# ─── Tests ───────────────────────────────────────────────────────────────────
+**/*.test.ts
+**/*.spec.ts
+src/test/**
+
+# ─── Scripts and CI ──────────────────────────────────────────────────────────
+scripts/**
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+.gitignore
+.gitattributes
+*.vsix
+node_modules/**
+pnpm-lock.yaml
+package-lock.json
+
+# ─── Docs (keep README.md for Marketplace, exclude others) ───────────────────
+CONTRIBUTING.md
+CHANGELOG.md
+.editorconfig

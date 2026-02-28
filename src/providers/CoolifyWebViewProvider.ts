@@ -1,65 +1,9 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { ConfigurationManager } from '../managers/ConfigurationManager';
 import { CoolifyService } from '../services/CoolifyService';
-
-// Types and Interfaces
-interface RetryConfig {
-  maxAttempts: number;
-  baseDelay: number;
-  maxDelay: number;
-}
-
-interface WebViewState {
-  applications: Application[];
-  deployments: Deployment[];
-}
-
-interface Application {
-  id: string;
-  name: string;
-  status: string;
-  fqdn: string;
-  git_repository: string;
-  git_branch: string;
-  updated_at: string;
-}
-
-interface Deployment {
-  id: string;
-  applicationId: string;
-  applicationName: string;
-  status: string;
-  commit: string;
-  startedAt: string;
-}
-
-interface WebViewMessage {
-  type: 'refresh' | 'deploy' | 'configure' | 'reconfigure';
-  applicationId?: string;
-}
-
-interface RefreshDataMessage {
-  type: 'refresh-data';
-  applications: Application[];
-  deployments: Deployment[];
-}
-
-interface DeploymentStatusMessage {
-  type: 'deployment-status';
-  status: string;
-  applicationId: string;
-}
-
-type WebViewOutgoingMessage = RefreshDataMessage | DeploymentStatusMessage;
-
-// Constants
-const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxAttempts: 3,
-  baseDelay: 1000,
-  maxDelay: 10000,
-};
+import { getWebViewHtml, getWelcomeHtml } from '../utils/templateHelper';
+import { withRetry } from '../utils/retry';
+import { Application, Deployment, WebViewMessage, WebViewOutgoingMessage } from '../types';
 
 const REFRESH_INTERVAL = 5000;
 
@@ -99,20 +43,15 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     await this.updateView();
   }
 
-  // View Management Methods
   private isViewValid(): boolean {
     return !!this._view && !this.isDisposed;
   }
 
   public async updateView(): Promise<void> {
-    if (this.pendingRefresh) {
-      clearTimeout(this.pendingRefresh);
-    }
+    if (this.pendingRefresh) clearTimeout(this.pendingRefresh);
 
     this.pendingRefresh = setTimeout(async () => {
-      if (!this.isViewValid()) {
-        return;
-      }
+      if (!this.isViewValid()) return;
 
       try {
         this._view!.webview.html = '';
@@ -127,36 +66,6 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     }, 100);
   }
 
-  // Retry Logic
-  private async withRetry<T>(
-    operation: () => Promise<T>,
-    retryConfig: RetryConfig = DEFAULT_RETRY_CONFIG
-  ): Promise<T> {
-    let lastError: Error | undefined;
-
-    for (let attempt = 1; attempt <= retryConfig.maxAttempts; attempt++) {
-      try {
-        return await operation();
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-
-        if (attempt === retryConfig.maxAttempts) {
-          throw lastError;
-        }
-
-        const delay = Math.min(
-          retryConfig.baseDelay * Math.pow(2, attempt - 1),
-          retryConfig.maxDelay
-        );
-
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-
-    throw lastError;
-  }
-
-  // Refresh Management
   private stopRefreshInterval(): void {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
@@ -176,7 +85,7 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
         this.retryCount++;
         console.error('Refresh failed:', error);
 
-        if (this.retryCount >= DEFAULT_RETRY_CONFIG.maxAttempts) {
+        if (this.retryCount >= 3) {
           this.stopRefreshInterval();
           if (this.isViewValid()) {
             vscode.window.showErrorMessage(
@@ -188,14 +97,11 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     }, REFRESH_INTERVAL);
   }
 
-  // Data Management
   public async refreshData(): Promise<void> {
-    if (!this.isViewValid()) {
-      return;
-    }
+    if (!this.isViewValid()) return;
 
     try {
-      await this.withRetry(async () => {
+      await withRetry(async () => {
         const serverUrl = await this.configManager.getServerUrl();
         const token = await this.configManager.getToken();
 
@@ -218,20 +124,11 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleUnconfiguredState(): Promise<void> {
-    await vscode.commands.executeCommand(
-      'setContext',
-      'coolify.isConfigured',
-      false
-    );
+    await vscode.commands.executeCommand('setContext', 'coolify.isConfigured', false);
   }
 
-  private async updateWebViewState(
-    applications: any[],
-    deployments: any[]
-  ): Promise<void> {
-    if (!this.isViewValid()) {
-      return;
-    }
+  private async updateWebViewState(applications: any[], deployments: any[]): Promise<void> {
+    if (!this.isViewValid()) return;
 
     const uiApplications = this.mapApplicationsToUI(applications);
     const uiDeployments = this.mapDeploymentsToUI(deployments);
@@ -252,7 +149,7 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
       git_repository: app.git_repository,
       git_branch: app.git_branch,
       updated_at: app.updated_at,
-    }));
+    } as Application));
   }
 
   private mapDeploymentsToUI(deployments: any[]): Deployment[] {
@@ -261,14 +158,11 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
       applicationId: d.application_id,
       applicationName: d.application_name,
       status: d.status,
-      commit:
-        d.commit_message ||
-        `Deploying ${d.commit?.slice(0, 7) || 'latest'} commit`,
+      commit: d.commit_message || `Deploying ${d.commit?.slice(0, 7) || 'latest'} commit`,
       startedAt: new Date(d.created_at).toLocaleString(),
-    }));
+    } as Deployment));
   }
 
-  // Deployment Management
   public async deployApplication(applicationId: string): Promise<void> {
     if (this.deployingApplications.has(applicationId)) {
       vscode.window.showInformationMessage('Deployment already in progress');
@@ -278,7 +172,7 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     this.deployingApplications.add(applicationId);
 
     try {
-      await this.withRetry(async () => {
+      await withRetry(async () => {
         const serverUrl = await this.configManager.getServerUrl();
         const token = await this.configManager.getToken();
 
@@ -302,17 +196,38 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // WebView Resolution
   public async resolveWebviewView(
     webviewView: vscode.WebviewView,
     _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ): Promise<void> {
     this.cleanupExistingView();
-    this.initializeNewView(webviewView);
+    this.isDisposed = false;
+    this._view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri],
+      enableCommandUris: false,
+    };
 
     try {
-      await this.setupWebView(webviewView);
+      this.setupMessageHandler(webviewView);
+      this.setupVisibilityHandler(webviewView);
+      this.setupDisposalHandler(webviewView);
+
+      const isConfigured = await this.configManager.isConfigured();
+      if (!isConfigured) {
+        this.stopRefreshInterval();
+        webviewView.webview.html = await getWelcomeHtml(this._extensionUri, webviewView.webview);
+        return;
+      }
+
+      webviewView.webview.html = await getWebViewHtml(this._extensionUri);
+      if (webviewView.visible) {
+        this.startRefreshInterval();
+      }
+      await this.refreshData();
     } catch (error) {
       this.handleError('Error initializing webview', error);
     }
@@ -325,63 +240,33 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private initializeNewView(webviewView: vscode.WebviewView): void {
-    this.isDisposed = false;
-    this._view = webviewView;
-
-    webviewView.webview.options = {
-      enableScripts: true,
-      localResourceRoots: [this._extensionUri],
-      enableCommandUris: false,
-    };
-  }
-
-  private async setupWebView(webviewView: vscode.WebviewView): Promise<void> {
-    this.setupMessageHandler(webviewView);
-    this.setupVisibilityHandler(webviewView);
-    this.setupDisposalHandler(webviewView);
-
-    const isConfigured = await this.configManager.isConfigured();
-    if (!isConfigured) {
-      this.handleUnconfiguredWebView(webviewView);
-      return;
-    }
-
-    await this.initializeConfiguredWebView(webviewView);
-  }
-
   private setupMessageHandler(webviewView: vscode.WebviewView): void {
     this.messageHandler = webviewView.webview.onDidReceiveMessage(
       async (data: WebViewMessage) => {
-        if (!this.isViewValid()) {
-          return;
-        }
+        if (!this.isViewValid()) return;
 
         try {
-          await this.handleWebViewMessage(data);
+          switch (data.type) {
+            case 'refresh':
+              await this.refreshData();
+              break;
+            case 'deploy':
+              if (data.applicationId) {
+                await this.deployApplication(data.applicationId);
+              }
+              break;
+            case 'configure':
+              await vscode.commands.executeCommand('coolify.configure');
+              break;
+            case 'reconfigure':
+              await vscode.commands.executeCommand('coolify.reconfigure');
+              break;
+          }
         } catch (error) {
           console.error('Error handling webview message:', error);
         }
       }
     );
-  }
-
-  private async handleWebViewMessage(message: WebViewMessage): Promise<void> {
-    switch (message.type) {
-      case 'refresh':
-        await this.refreshData();
-        break;
-      case 'deploy':
-        if (message.applicationId) {
-          await this.deployApplication(message.applicationId);
-        }
-        break;
-      case 'configure':
-        await vscode.commands.executeCommand('coolify.configure');
-        break;
-      case 'reconfigure':
-        await vscode.commands.executeCommand('coolify.reconfigure');
-    }
   }
 
   private setupVisibilityHandler(webviewView: vscode.WebviewView): void {
@@ -405,93 +290,30 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     );
   }
 
-  private async handleUnconfiguredWebView(
-    webviewView: vscode.WebviewView
-  ): Promise<void> {
-    this.stopRefreshInterval();
-    if (this.isViewValid()) {
-      webviewView.webview.html = await this.getWelcomeHtml();
-    }
-  }
-
-  private async initializeConfiguredWebView(
-    webviewView: vscode.WebviewView
-  ): Promise<void> {
-    if (this.isViewValid()) {
-      webviewView.webview.html = await this.getWebViewHtml();
-      if (webviewView.visible) {
-        this.startRefreshInterval();
-      }
-      await this.refreshData();
-    }
-  }
-
-  // HTML Generation
-  private async getWebViewHtml(): Promise<string> {
-    const htmlPath = vscode.Uri.joinPath(
-      this._extensionUri,
-      'dist',
-      'templates',
-      'webview.html'
-    );
-    const fileData = await vscode.workspace.fs.readFile(htmlPath);
-    return Buffer.from(fileData).toString('utf-8');
-  }
-
-  private async getWelcomeHtml(): Promise<string> {
-    const logoUri = this._view?.webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'public', 'logo.svg')
-    );
-
-    // Load welcome template and replace logo URI
-    const welcomePath = vscode.Uri.joinPath(
-      this._extensionUri,
-      'dist',
-      'templates',
-      'welcome.html'
-    );
-    const fileData = await vscode.workspace.fs.readFile(welcomePath);
-    let html = Buffer.from(fileData).toString('utf-8');
-    html = html.replace('${logoUri}', logoUri?.toString() || '');
-
-    return html;
-  }
-
-  // Error Handling
   private handleError(message: string, error: unknown): void {
     console.error(`${message}:`, error);
-    if (this.isViewValid()) {
-      if (error instanceof Error && error.message.includes('401')) {
-        this.handleAuthenticationError();
-      } else {
-        vscode.window.showErrorMessage(`${message}. Please try again.`);
-      }
+    if (!this.isViewValid()) return;
+
+    if (error instanceof Error && error.message.includes('401')) {
+      this.handleAuthenticationError();
+    } else {
+      vscode.window.showErrorMessage(`${message}. Please try again.`);
     }
   }
 
   private async handleAuthenticationError(): Promise<void> {
     await this.configManager.clearConfiguration();
-    await vscode.commands.executeCommand(
-      'setContext',
-      'coolify.isConfigured',
-      false
-    );
+    await vscode.commands.executeCommand('setContext', 'coolify.isConfigured', false);
     if (this.isViewValid()) {
-      vscode.window.showErrorMessage(
-        'Authentication failed. Please reconfigure the extension.'
-      );
+      vscode.window.showErrorMessage('Authentication failed. Please reconfigure the extension.');
     }
   }
 
   private async handleRefreshError(error: unknown): Promise<void> {
     if (error instanceof Error && error.message.includes('401')) {
       await this.handleAuthenticationError();
-    } else {
-      if (this.isViewValid()) {
-        vscode.window.showErrorMessage(
-          'Failed to refresh data. Please try again.'
-        );
-      }
+    } else if (this.isViewValid()) {
+      vscode.window.showErrorMessage('Failed to refresh data. Please try again.');
     }
     throw error;
   }
@@ -508,7 +330,7 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
       const service = new CoolifyService(serverUrl, token);
       const applications = await service.getApplications();
 
-      return applications.map((app) => ({
+      return applications.map((app: any) => ({
         id: app.uuid,
         name: app.name,
         status: app.status,
@@ -520,7 +342,6 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // Cleanup
   public dispose(): void {
     this.isDisposed = true;
     this.stopRefreshInterval();

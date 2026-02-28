@@ -1,0 +1,75 @@
+name: Release & Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'   # Triggers on any release tag like v2.0.0
+
+permissions:
+  contents: write   # needed to create a GitHub Release
+
+jobs:
+  release:
+    name: Build, publish, and release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and type-check
+        run: pnpm run check-types
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Package .vsix
+        run: |
+          pnpm add -g @vscode/vsce ovsx
+          vsce package --no-dependencies
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coolify-extension-vsix
+          path: '*.vsix'
+          retention-days: 90
+
+      # ─── VS Code Marketplace ──────────────────────────────────────────────
+      - name: Publish to VS Code Marketplace
+        if: ${{ env.VSCE_TOKEN != '' }}
+        run: vsce publish --no-dependencies -p "$VSCE_TOKEN"
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+
+      # ─── Open VSX Registry (Cursor, Trae, Windsurf, VSCodium …) ─────────
+      - name: Publish to Open VSX Registry
+        if: ${{ env.OVSX_TOKEN != '' }}
+        run: |
+          VSIX_FILE=$(ls *.vsix | head -1)
+          ovsx publish "$VSIX_FILE" -p "$OVSX_TOKEN"
+        env:
+          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+
+      # ─── GitHub Release ───────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.vsix'
+          generate_release_notes: true
+          fail_on_unmatched_files: false
