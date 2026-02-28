@@ -21,6 +21,7 @@
 ![Windsurf](https://img.shields.io/badge/Windsurf-✓-5C5CFF)
 ![Trae](https://img.shields.io/badge/Trae-✓-FF6B35)
 ![VSCodium](https://img.shields.io/badge/VSCodium-✓-2F80ED)
+![Antigravity](https://img.shields.io/badge/Antigravity-✓-6C3BFF)
 
 </div>
 
@@ -192,6 +193,23 @@ codium --install-extension vscode-coolify-2.0.0.vsix
 
 </details>
 
+<details>
+<summary><b>Antigravity</b></summary>
+
+Antigravity is fully VS Code extension-compatible. Use the VSIX method:
+
+```
+Cmd/Ctrl+Shift+P  →  Extensions: Install from VSIX…  →  select the file
+```
+
+Or CLI:
+
+```bash
+antigravity --install-extension vscode-coolify-2.0.0.vsix
+```
+
+</details>
+
 ---
 
 ### Step 2 · Configure
@@ -251,6 +269,7 @@ The server URL syncs via Settings Sync. The token is **never synced** — it sta
 | Windsurf | Open VSX / `.vsix` | ✅ Full | — | ✅ |
 | Trae | Open VSX / `.vsix` | ✅ Full | — | ✅ |
 | VSCodium | Open VSX / `.vsix` | ⚠️ Fallback | — | ✅ |
+| Antigravity | `.vsix` | ✅ Full | — | ✅ |
 
 > ⚠️ **Remote sessions**: When running in an SSH / Dev Container / Codespaces session, the extension runs on the **remote host**. Your Coolify server must be reachable from that host, not just from your laptop.
 

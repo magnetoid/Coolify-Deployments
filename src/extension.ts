@@ -7,7 +7,7 @@ import { registerCommands } from './commands';
 // ─── Editor Detection ─────────────────────────────────────────────────────────
 // Cursor, Trae, Windsurf, VSCodium, and others all expose their name via
 // vscode.env.appName. We use this to tailor messaging without breaking anything.
-function detectEditorName(): { name: string; isCursor: boolean; isTrae: boolean; isWindsurf: boolean; isVSCodium: boolean } {
+function detectEditorName(): { name: string; isCursor: boolean; isTrae: boolean; isWindsurf: boolean; isVSCodium: boolean; isAntigravity: boolean } {
   const appName = vscode.env.appName ?? '';
   const lower = appName.toLowerCase();
   return {
@@ -16,6 +16,7 @@ function detectEditorName(): { name: string; isCursor: boolean; isTrae: boolean;
     isTrae: lower.includes('trae'),
     isWindsurf: lower.includes('windsurf'),
     isVSCodium: lower.includes('vscodium') || lower.includes('codium'),
+    isAntigravity: lower.includes('antigravity'),
   };
 }
 
