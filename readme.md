@@ -42,8 +42,13 @@ A native TreeView in the sidebar displays your entire Coolify workspace in real 
 ```
 COOLIFY DEPLOYMENTS
 │
-├── 📦 Applications
-│   ├── 🟢 coolify-api        running     [🚀 ↺ 📋]
+├── 📁 Projects
+│   └── My SaaS App
+│       └── Production
+│           ├── 🟢 api        running     [🚀 ↺ 📋]
+│           └── 🟢 frontend   running     [🚀 ↺ 📋]
+│
+├── 📦 Applications (All)
 │   ├── 🔴 marketing-site     stopped     [▶ 📋]
 │   └── 🟡 analytics-worker   deploying…  [✖]
 │
@@ -52,11 +57,11 @@ COOLIFY DEPLOYMENTS
 │   └── hetzner-backup    192.168.2.14   online
 │
 └── 🗄️  Databases
-    ├── pg-production   PostgreSQL 15   [💾]
-    └── redis-cache     Redis 7         [💾]
+    ├── pg-production   PostgreSQL 15   [▶ ⏹ 💾]
+    └── redis-cache     Redis 7         [▶ ⏹ 💾]
 ```
 
-Status icons update automatically — green for running, red for stopped, yellow for in-progress. No manual refresh needed.
+Browse by **Project ➡️ Environment ➡️ Application** or see a flat list of all your apps. Status icons update automatically — no manual refresh needed.
 
 ---
 
@@ -70,10 +75,10 @@ Right-click any item in the tree for a context menu. Inline action buttons appea
 | 📋 View live logs | `⌘⇧L` / `Ctrl+Shift+L` | Tree button, palette |
 | 🔄 Refresh sidebar | `⌘⇧R` / `Ctrl+Shift+R` | Tree toolbar, palette |
 | ✖ Cancel deployment | `⌘⇧X` / `Ctrl+Shift+X` | Context menu, palette |
-| ▶ Start application | — | Context menu |
-| ⏹ Stop application | — | Context menu |
+| ▶ Start application/DB | — | Context menu |
+| ⏹ Stop application/DB | — | Context menu |
 | ↺ Restart application | — | Context menu |
-| 💾 Database backup | — | Context menu (databases) |
+| 💾 Database backup | — | Context menu |
 | 🌐 Open in browser | — | Context menu |
 | 📋 Copy UUID | — | Context menu |
 
@@ -108,6 +113,20 @@ When you push or merge to a branch that matches a Coolify application's configur
 > *"marketing-site is configured to deploy from `main`. Deploy now?"*
 
 Click **Deploy** — done. No switching context, no opening Coolify, no manual trigger.
+
+---
+
+### 🤖 AI Agent Integration API
+
+Using an AI coding agent like **Trae**, **Cursor**, or **Antigravity**? The extension exposes a structured API for AI agents to control your Coolify infrastructure directly!
+
+Every major command accepts an explicit UUID argument, meaning the AI can instantly trigger actions on your behalf without popping open VS Code UI dropdowns:
+
+```typescript
+// Example: an AI agent deploying your app instantly
+vscode.commands.executeCommand('coolify.startDeployment', 'your-app-uuid');
+vscode.commands.executeCommand('coolify.stopDatabase', 'your-db-uuid');
+```
 
 ---
 
@@ -173,7 +192,7 @@ cd Coolify-Deployments
 pnpm install
 pnpm add -g @vscode/vsce
 vsce package --no-dependencies
-# ↳ generates vscode-coolify-2.2.0.vsix
+# ↳ generates vscode-coolify-2.3.0.vsix
 ```
 
 ---
@@ -194,7 +213,7 @@ Or use the Extensions sidebar (`Ctrl+Shift+X`) → click the **⋯ menu** → **
 <summary><b>VS Code</b></summary>
 
 ```bash
-code --install-extension vscode-coolify-2.2.0.vsix
+code --install-extension vscode-coolify-2.3.0.vsix
 ```
 
 </details>
@@ -203,7 +222,7 @@ code --install-extension vscode-coolify-2.2.0.vsix
 <summary><b>Cursor</b></summary>
 
 ```bash
-cursor --install-extension vscode-coolify-2.2.0.vsix
+cursor --install-extension vscode-coolify-2.3.0.vsix
 ```
 
 </details>
@@ -212,7 +231,7 @@ cursor --install-extension vscode-coolify-2.2.0.vsix
 <summary><b>Windsurf</b></summary>
 
 ```bash
-windsurf --install-extension vscode-coolify-2.2.0.vsix
+windsurf --install-extension vscode-coolify-2.3.0.vsix
 ```
 
 </details>
@@ -221,7 +240,7 @@ windsurf --install-extension vscode-coolify-2.2.0.vsix
 <summary><b>VSCodium</b></summary>
 
 ```bash
-codium --install-extension vscode-coolify-2.2.0.vsix
+codium --install-extension vscode-coolify-2.3.0.vsix
 ```
 
 </details>
@@ -286,7 +305,7 @@ The server URL is synced via VS Code Settings Sync. API tokens are **never synce
 | `coolify.serverUrl` | `string` | `""` | Coolify server URL — can also be set in `.vscode/settings.json` |
 | `coolify.refreshInterval` | `number` | `5000` | Sidebar auto-refresh interval in milliseconds (minimum: 2000) |
 | `coolify.defaultApplication` | `string` | `""` | UUID of the app to pin in the Status Bar (leave empty = first app) |
-| `coolify.enableNotifications` | `boolean` | `true` | Show toast notifications for deployment success / failure |
+| `coolify.enableNotifications` | `boolean` | `true` | Toggle "Quiet Mode". If false, deployment and state change toast notifications are silenced. |
 
 ---
 
