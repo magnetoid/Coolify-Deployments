@@ -65,6 +65,21 @@ Browse by **Project ➡️ Environment ➡️ Application** or see a flat list o
 
 ---
 
+### 🎨 Sidebar Webview Panel — Premium control center
+
+Open the Coolify sidebar to reveal a **rich, card-based control panel** with 4 collapsible sections:
+
+| Section | What you see |
+|---------|-------------|
+| 📦 **Applications** | App cards with status badge, branch, URL, **Vercel-style Deploy button**, and inline actions (Start · Stop · Restart · Logs · Open in Browser) |
+| 🖥️ **Servers** | Server name, IP address, Online/Offline badge |
+| 🗄️ **Databases** | DB name, type, status, Start/Stop/Backup buttons |
+| 🚀 **Recent Deployments** | Last 5 deploys with commit, status (pulsing if active), and timestamp |
+
+**Deploy button** — Every application card features a prominent, full-width blue deploy button inspired by Vercel. One click triggers a deployment. Works in **VS Code**, **Trae**, **Cursor**, **Windsurf**, and all compatible editors.
+
+---
+
 ### ⚡ One-click & keyboard actions
 
 Right-click any item in the tree for a context menu. Inline action buttons appear next to each app. Everything is also available from the Command Palette (`Cmd/Ctrl+Shift+P → Coolify:`).
@@ -130,15 +145,12 @@ vscode.commands.executeCommand('coolify.stopDatabase', 'your-db-uuid');
 
 ---
 
-### 🔐 Three ways to connect to Coolify
+### 🔐 Two ways to connect to Coolify
 
-**Method 1 — Guided wizard with auto browser-open**
-Run `Coolify: Configure`. Enter the server URL. Once the server is verified, the extension automatically opens your Coolify API token page in the browser. Paste the token — you're done.
-
-**Method 2 — VS Code Accounts menu**
+**Method 1 — VS Code Accounts menu**
 Coolify appears in the native **Accounts** panel (⚙ bottom-left → Accounts), alongside GitHub and Microsoft. Sign in from there — it opens the browser to the token page, you paste and confirm.
 
-**Method 3 — Deep link (one-click from anywhere)**
+**Method 2 — Deep link (one-click from anywhere)**
 Anyone can open a link like:
 
 ```
@@ -192,7 +204,7 @@ cd Coolify-Deployments
 pnpm install
 pnpm add -g @vscode/vsce
 vsce package --no-dependencies
-# ↳ generates vscode-coolify-2.3.0.vsix
+# ↳ generates vscode-coolify-2.3.1.vsix
 ```
 
 ---
