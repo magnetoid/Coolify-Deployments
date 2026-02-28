@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { ConfigurationManager } from '../managers/ConfigurationManager';
+import { CoolifyService } from '../services/CoolifyService';
+import { Application } from '../types';
 
 export class StatusBarManager {
     private items: vscode.StatusBarItem[] = [];
@@ -41,7 +43,6 @@ export class StatusBarManager {
 
             if (!serverUrl || !token) { return; }
 
-            const { CoolifyService } = await import('../services/CoolifyService');
             const service = new CoolifyService(serverUrl, token);
             const applications = await service.getApplications();
 
@@ -49,9 +50,8 @@ export class StatusBarManager {
                 .getConfiguration('coolify')
                 .get<string>('defaultApplication');
 
-            // Find pinned app or just show the first relevant one
             const appsToShow = pinnedAppId
-                ? applications.filter(a => a.id === pinnedAppId || a.uuid === pinnedAppId)
+                ? applications.filter((a: Application) => a.id === pinnedAppId || a.uuid === pinnedAppId)
                 : applications.slice(0, 2);
 
             for (const app of appsToShow) {
