@@ -4,8 +4,31 @@ import { CoolifyTreeDataProvider } from '../providers/CoolifyTreeDataProvider';
 import { CoolifyService } from '../services/CoolifyService';
 
 /**
+ * Normalizes and checks if a git remote URL matches a coolify repository shorthand.
+ * Example remote: 'git@github.com:magnetoid/Coolify-Deployments.git' or 'https://github.com/magnetoid/Coolify-Deployments'
+ * Example coolifyRepo: 'magnetoid/Coolify-Deployments'
+ */
+function matchesRepo(remotes: any[], coolifyRepo: string | undefined): boolean {
+    if (!coolifyRepo || !remotes) { return false; }
+
+    // Normalize coolifyRepo: strip any trailing .git just in case
+    const target = coolifyRepo.replace(/\.git$/, '').toLowerCase();
+
+    for (const r of remotes) {
+        const fetchUrl = r.fetchUrl ? r.fetchUrl.replace(/\.git$/, '').toLowerCase() : '';
+        const pushUrl = r.pushUrl ? r.pushUrl.replace(/\.git$/, '').toLowerCase() : '';
+
+        if (fetchUrl.endsWith(target) || pushUrl.endsWith(target)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Git push advisor — listens for commits/pushes via the built-in git extension.
- * When a push is detected on a branch that matches a Coolify app's git_branch,
+ * When a push is detected on a branch that matches a Coolify app's git_branch 
+ * AND the remote repository matches the app's git_repository,
  * it offers to deploy that app immediately.
  */
 export function registerGitPushAdvisor(
@@ -35,7 +58,9 @@ export function registerGitPushAdvisor(
 
                 const apps = treeDataProvider.getCachedApplications();
                 const matchedApps = apps.filter(
-                    a => a.git_branch === currentBranch && a.status !== 'deploying'
+                    a => a.git_branch === currentBranch &&
+                        a.status !== 'deploying' &&
+                        matchesRepo(repo.state.remotes, a.git_repository)
                 );
 
                 if (matchedApps.length === 0) { return; }
