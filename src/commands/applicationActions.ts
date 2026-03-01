@@ -36,7 +36,7 @@ async function performApplicationAction(
                     label: app.name,
                     description: app.status,
                     detail: `Status: ${app.status}`,
-                    id: app.id || app.uuid || '',
+                    id: app.uuid || app.id || '',
                 })),
                 { placeHolder: `Select an application to ${action}`, title }
             );

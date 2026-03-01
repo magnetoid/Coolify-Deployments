@@ -339,7 +339,7 @@ export async function startDeploymentCommand(
                 label: app.name,
                 description: app.status,
                 detail: app.fqdn ? `🌐 ${app.fqdn}` : undefined,
-                id: app.id || app.uuid || '',
+                id: app.uuid || app.id || '',
             })),
             { placeHolder: 'Select an application to deploy', title: 'Coolify: Start Deploy Pipeline' }
         );
@@ -366,7 +366,7 @@ export async function deployCurrentProjectCommand(
 
         if (matchedApps.length === 1) {
             const app = matchedApps[0];
-            await runDeploymentFlow(configManager, app.id || app.uuid || '', app.name);
+            await runDeploymentFlow(configManager, app.uuid || app.id || '', app.name);
             return;
         }
 
@@ -375,7 +375,7 @@ export async function deployCurrentProjectCommand(
                 label: app.name,
                 description: app.status,
                 detail: app.fqdn ? `🌐 ${app.fqdn}` : undefined,
-                id: app.id || app.uuid || '',
+                id: app.uuid || app.id || '',
             })),
             { placeHolder: 'Select an application to deploy from current workspace', title: 'Coolify: Deploy Current Project' }
         );

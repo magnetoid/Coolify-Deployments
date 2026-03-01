@@ -67,7 +67,7 @@ export function registerCommands(
         } else if (itemOrUuid?.kind === 'application' && itemOrUuid.rawData) {
             // Invoked via TreeView menu
             const app = itemOrUuid.rawData as Application;
-            return runDeploymentFlow(configManager, app.id || app.uuid || '', app.name);
+            return runDeploymentFlow(configManager, app.uuid || app.id || '', app.name);
         }
         // Invoked via Command Palette
         return startDeploymentCommandWrapper(configManager, treeDataProvider);
@@ -82,7 +82,7 @@ export function registerCommands(
             return _appAction(configManager, itemOrUuid, name || 'Application', 'start');
         } else if (itemOrUuid?.kind === 'application' && itemOrUuid.rawData) {
             const app = itemOrUuid.rawData as Application;
-            return _appAction(configManager, app.id || app.uuid || '', app.name, 'start');
+            return _appAction(configManager, app.uuid || app.id || '', app.name, 'start');
         }
         return startApplicationCommand(undefined, configManager);
     });
@@ -92,7 +92,7 @@ export function registerCommands(
             return _appAction(configManager, itemOrUuid, name || 'Application', 'stop');
         } else if (itemOrUuid?.kind === 'application' && itemOrUuid.rawData) {
             const app = itemOrUuid.rawData as Application;
-            return _appAction(configManager, app.id || app.uuid || '', app.name, 'stop');
+            return _appAction(configManager, app.uuid || app.id || '', app.name, 'stop');
         }
         return stopApplicationCommand(undefined, configManager);
     });
@@ -102,7 +102,7 @@ export function registerCommands(
             return _appAction(configManager, itemOrUuid, name || 'Application', 'restart');
         } else if (itemOrUuid?.kind === 'application' && itemOrUuid.rawData) {
             const app = itemOrUuid.rawData as Application;
-            return _appAction(configManager, app.id || app.uuid || '', app.name, 'restart');
+            return _appAction(configManager, app.uuid || app.id || '', app.name, 'restart');
         }
         return restartApplicationCommand(undefined, configManager);
     });
@@ -113,7 +113,7 @@ export function registerCommands(
             return viewApplicationLogsCommand(configManager, { id: itemOrUuid, name: name || 'Application' });
         } else if (itemOrUuid && 'kind' in itemOrUuid && itemOrUuid.kind === 'application' && itemOrUuid.rawData) {
             const app = itemOrUuid.rawData as Application;
-            return viewApplicationLogsCommand(configManager, { id: app.id || app.uuid || '', name: app.name });
+            return viewApplicationLogsCommand(configManager, { id: app.uuid || app.id || '', name: app.name });
         } else if (itemOrUuid && typeof itemOrUuid === 'object' && 'id' in itemOrUuid) {
             return viewApplicationLogsCommand(configManager, itemOrUuid as { id: string; name: string });
         }
@@ -125,7 +125,7 @@ export function registerCommands(
             return viewApplicationLogsLiveCommand(configManager, { id: itemOrUuid, name: name || 'Application' });
         } else if (itemOrUuid && 'kind' in itemOrUuid && itemOrUuid.kind === 'application' && itemOrUuid.rawData) {
             const app = itemOrUuid.rawData as Application;
-            return viewApplicationLogsLiveCommand(configManager, { id: app.id || app.uuid || '', name: app.name });
+            return viewApplicationLogsLiveCommand(configManager, { id: app.uuid || app.id || '', name: app.name });
         } else if (itemOrUuid && typeof itemOrUuid === 'object' && 'id' in itemOrUuid) {
             return viewApplicationLogsLiveCommand(configManager, itemOrUuid as { id: string; name: string });
         }

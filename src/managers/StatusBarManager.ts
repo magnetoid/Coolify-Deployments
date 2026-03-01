@@ -118,7 +118,7 @@ export class StatusBarManager {
             const seenIds = new Set<string>();
 
             for (const app of validApps) {
-                const appId = app.id || app.uuid;
+                const appId = app.uuid || app.id;
                 if (!appId) continue;
                 seenIds.add(appId);
 

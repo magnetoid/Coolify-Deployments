@@ -42,7 +42,7 @@ export async function viewApplicationLogsCommand(
                     label: a.name,
                     description: a.status,
                     detail: a.fqdn,
-                    id: a.id || a.uuid || '',
+                    id: a.uuid || a.id || '',
                 })),
                 { placeHolder: 'Select an application to view logs', title: 'Coolify: View Logs' }
             );
@@ -103,7 +103,7 @@ export async function viewApplicationLogsLiveCommand(
                     label: a.name,
                     description: a.status,
                     detail: a.fqdn,
-                    id: a.id || a.uuid || '',
+                    id: a.uuid || a.id || '',
                 })),
                 { placeHolder: 'Select an application to tail logs', title: 'Coolify: Live App Logs' }
             );
