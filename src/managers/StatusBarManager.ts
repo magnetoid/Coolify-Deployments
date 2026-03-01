@@ -1,15 +1,49 @@
 import * as vscode from 'vscode';
+import * as cp from 'child_process';
+import * as util from 'util';
 import { ConfigurationManager } from '../managers/ConfigurationManager';
 import { CoolifyService } from '../services/CoolifyService';
 import { Application } from '../types';
+
+const exec = util.promisify(cp.exec);
+
+function normalizeGitUrl(url: string | undefined): string | null {
+    if (!url) return null;
+    let cleanUrl = url.trim().replace(/\.git$/, '');
+    const match = cleanUrl.match(/[:/]([^/]+\/[^/]+)$/);
+    if (match && match[1]) {
+        return match[1].toLowerCase();
+    }
+    return cleanUrl.toLowerCase();
+}
 
 export class StatusBarManager {
     private items: Map<string, vscode.StatusBarItem> = new Map();
     private pollInterval?: NodeJS.Timeout;
     private isDisposed = false;
     private isRefreshing = false;
+    private cachedRemotes: Set<string> | null = null;
 
     constructor(private configManager: ConfigurationManager) { }
+
+    private async getWorkspaceGitRemotes(): Promise<Set<string>> {
+        if (this.cachedRemotes) { return this.cachedRemotes; }
+
+        const remotes = new Set<string>();
+        const folders = vscode.workspace.workspaceFolders;
+        if (!folders) return remotes;
+
+        for (const folder of folders) {
+            try {
+                const { stdout } = await exec('git config --get remote.origin.url', { cwd: folder.uri.fsPath });
+                const norm = normalizeGitUrl(stdout);
+                if (norm) remotes.add(norm);
+            } catch (e) { /* ignore */ }
+        }
+
+        this.cachedRemotes = remotes;
+        return remotes;
+    }
 
     public async initialize(): Promise<void> {
         await this.refreshStatusBar();
@@ -57,9 +91,19 @@ export class StatusBarManager {
                 .getConfiguration('coolify')
                 .get<string>('defaultApplication');
 
-            const appsToShow = pinnedAppId
-                ? applications.filter((a: Application) => a.id === pinnedAppId || a.uuid === pinnedAppId)
-                : applications.slice(0, 2);
+            let appsToShow: Application[] = [];
+
+            if (pinnedAppId) {
+                appsToShow = applications.filter((a: Application) => a.id === pinnedAppId || a.uuid === pinnedAppId);
+            } else {
+                const remotes = await this.getWorkspaceGitRemotes();
+                if (remotes.size > 0) {
+                    appsToShow = applications.filter((a: Application) => {
+                        const appRepo = normalizeGitUrl(a.git_repository);
+                        return appRepo && remotes.has(appRepo);
+                    });
+                }
+            }
 
             // Only show apps that have a known, displayable status
             const validApps = appsToShow.filter((a: Application) => a.status && a.status.toLowerCase() !== 'unknown');
