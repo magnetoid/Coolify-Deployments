@@ -118,9 +118,10 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
           service.getDatabases().catch(() => []),
         ]);
 
-        await this.updateWebViewState(applications, deployments, servers, databases);
+        await this.updateWebViewState(true, applications, deployments, servers, databases);
       });
     } catch (error) {
+      this.updateWebViewState(false, [], [], [], []);
       await this.handleRefreshError(error);
     }
   }
@@ -129,7 +130,7 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
     await vscode.commands.executeCommand('setContext', 'coolify.isConfigured', false);
   }
 
-  private async updateWebViewState(applications: any[], deployments: any[], servers: any[] = [], databases: any[] = []): Promise<void> {
+  private async updateWebViewState(connected: boolean, applications: any[], deployments: any[], servers: any[] = [], databases: any[] = []): Promise<void> {
     if (!this.isViewValid()) return;
 
     const uiApplications = this.mapApplicationsToUI(applications);
@@ -137,6 +138,7 @@ export class CoolifyWebViewProvider implements vscode.WebviewViewProvider {
 
     this._view!.webview.postMessage({
       type: 'refresh-data',
+      connected: connected,
       applications: uiApplications,
       deployments: uiDeployments,
       servers: servers,

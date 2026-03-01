@@ -7,6 +7,7 @@ export class StatusBarManager {
     private items: Map<string, vscode.StatusBarItem> = new Map();
     private pollInterval?: NodeJS.Timeout;
     private isDisposed = false;
+    private isRefreshing = false;
 
     constructor(private configManager: ConfigurationManager) { }
 
@@ -16,6 +17,10 @@ export class StatusBarManager {
     }
 
     private startPolling(): void {
+        if (this.pollInterval) {
+            return; // Already polling
+        }
+
         const intervalMs = vscode.workspace
             .getConfiguration('coolify')
             .get<number>('refreshInterval', 5000);
@@ -28,17 +33,18 @@ export class StatusBarManager {
     }
 
     public async refreshStatusBar(): Promise<void> {
-        if (this.isDisposed) { return; }
+        if (this.isDisposed || this.isRefreshing) { return; }
 
-        const isConfigured = await this.configManager.isConfigured();
-        // remove `this.clearItems();` from the beginning of the function since it's now handled below.
-
-        if (!isConfigured) {
-            this.clearItems();
-            return;
-        }
+        this.isRefreshing = true;
 
         try {
+            const isConfigured = await this.configManager.isConfigured();
+
+            if (!isConfigured) {
+                this.clearItems();
+                return;
+            }
+
             const serverUrl = await this.configManager.getServerUrl();
             const token = await this.configManager.getToken();
 
@@ -97,6 +103,8 @@ export class StatusBarManager {
             }
         } catch (error) {
             console.error('StatusBarManager: Failed to refresh:', error);
+        } finally {
+            this.isRefreshing = false;
         }
     }
 
@@ -110,7 +118,12 @@ export class StatusBarManager {
     }
 
     private formatStatus(status: string): string {
-        if (!status) { return 'Unknown'; }
+        const s = status?.toLowerCase() || '';
+        if (!s || s === 'unknown') return 'Unknown';
+        if (s.includes('running')) return 'Running';
+        if (s.includes('stopped') || s.includes('exited')) return 'Stopped';
+        if (s.includes('deploying') || s.includes('starting')) return 'Deploying';
+        if (s.includes('error') || s.includes('failed')) return 'Error';
         return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ');
     }
 
