@@ -71,6 +71,7 @@ Open the Coolify sidebar to reveal a **rich, card-based control panel** with 4 c
 
 | Section | What you see |
 |---------|-------------|
+| 🟢 **Connection** | A live "Connected / Disconnected" badge at the very top of the extension indicating API health. |
 | 📦 **Applications** | App cards with status badge, branch, URL, **Vercel-style Deploy button**, and inline actions (Start · Stop · Restart · Logs · Open in Browser) |
 | 🖥️ **Servers** | Server name, IP address, Online/Offline badge |
 | 🗄️ **Databases** | DB name, type, status, Start/Stop/Backup buttons |
@@ -107,7 +108,12 @@ Run `Coolify: Quick Deploy` from the palette. A searchable list of all your apps
 
 ### 📊 Status Bar Monitor — always visible
 
-A persistent status indicator in the editor's bottom bar shows the current state of your pinned app. Click it to open the log stream. Configure which app to pin with `coolify.defaultApplication`.
+A persistent status indicator in the editor's bottom bar shows the state of your application. Click it to open the log stream.
+
+**🧠 Intelligent Workspace Auto-Detection:**
+The extension automatically inspects the `.git/config` of your active VS Code workspace. It seamlessly filters applications to **only show** the Coolify application that matches your current local Git origin. This means your Status Bar stays perfectly clean in unrelated projects!
+
+*(Don't use Git? You can still manually pin a specific app via `coolify.defaultApplication` in Settings).*
 
 ```
   🟢 coolify-api: Running   🔴 marketing-site: Stopped
@@ -204,7 +210,7 @@ cd Coolify-Deployments
 pnpm install
 pnpm add -g @vscode/vsce
 vsce package --no-dependencies
-# ↳ generates vscode-coolify-2.3.1.vsix
+# ↳ generates vscode-coolify-2.3.7.vsix
 ```
 
 ---
@@ -225,7 +231,7 @@ Or use the Extensions sidebar (`Ctrl+Shift+X`) → click the **⋯ menu** → **
 <summary><b>VS Code</b></summary>
 
 ```bash
-code --install-extension vscode-coolify-2.3.0.vsix
+code --install-extension vscode-coolify-2.3.7.vsix
 ```
 
 </details>
@@ -234,7 +240,7 @@ code --install-extension vscode-coolify-2.3.0.vsix
 <summary><b>Cursor</b></summary>
 
 ```bash
-cursor --install-extension vscode-coolify-2.3.0.vsix
+cursor --install-extension vscode-coolify-2.3.7.vsix
 ```
 
 </details>
@@ -243,7 +249,7 @@ cursor --install-extension vscode-coolify-2.3.0.vsix
 <summary><b>Windsurf</b></summary>
 
 ```bash
-windsurf --install-extension vscode-coolify-2.3.0.vsix
+windsurf --install-extension vscode-coolify-2.3.7.vsix
 ```
 
 </details>
@@ -252,7 +258,7 @@ windsurf --install-extension vscode-coolify-2.3.0.vsix
 <summary><b>VSCodium</b></summary>
 
 ```bash
-codium --install-extension vscode-coolify-2.3.0.vsix
+codium --install-extension vscode-coolify-2.3.7.vsix
 ```
 
 </details>
