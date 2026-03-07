@@ -1,15 +1,18 @@
 import * as vscode from 'vscode';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { ConfigurationManager } from '../managers/ConfigurationManager';
 import { CoolifyTreeDataProvider, CoolifyTreeItem } from '../providers/CoolifyTreeDataProvider';
 import { CoolifyService } from '../services/CoolifyService';
 import { Application } from '../types';
 import { StatusBarManager } from '../managers/StatusBarManager';
+
+const execAsync = promisify(exec);
 import { startDeploymentCommand, cancelDeploymentCommand, runDeploymentFlow, deployCurrentProjectCommand, forceDeploymentCommand } from './deploy';
 import { startApplicationCommand, stopApplicationCommand, restartApplicationCommand } from './applicationActions';
 import { startDatabaseCommand, stopDatabaseCommand } from './databaseActions';
 import { viewApplicationLogsCommand, viewApplicationLogsLiveCommand, createDatabaseBackupCommand } from './logs';
 import { openInBrowserCommand, copyUuidCommand, quickDeployCommand, testConnectionCommand } from './browser';
-import { registerGitPushAdvisor } from './gitAdvisor';
 import { CoolifyDashboardPanel } from '../panels/CoolifyDashboardPanel';
 import { installCoolifyCli } from '../utils/cliBridge';
 
@@ -193,9 +196,6 @@ export function registerCommands(
 
     register('coolify.installCli', () => installCoolifyCli());
 
-    // ─── Git Advisor ─────────────────────────────────────────────────────────────
-    registerGitPushAdvisor(context, configManager, treeDataProvider);
-
     // ─── AI Agent API (Headless Commands) ────────────────────────────────────────
     register('coolify.api.getApplications', async () => {
         try {
@@ -231,6 +231,100 @@ export function registerCommands(
             const service = new CoolifyService(serverUrl, token);
             const deployUuid = await service.startDeployment(uuid);
             return { success: !!deployUuid, deployUuid };
+        } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e) };
+        }
+    });
+
+    // ─── Zero-config workspace-aware API commands for AI agents ───────────────────
+    //
+    // Agents don't need to know the app UUID — these commands auto-detect
+    // the Coolify app that matches the current workspace's git remote.
+    //
+    // Usage examples an agent can follow:
+    //   "check coolify logs"       → executeCommand('coolify.api.getWorkspaceLogs')
+    //   "check error logs"         → executeCommand('coolify.api.getWorkspaceLogs')
+    //   "what's the deploy status" → executeCommand('coolify.api.getWorkspaceApp')
+    //   "show deployment errors"   → executeCommand('coolify.api.getLatestDeploymentLogs')
+
+    /**
+     * Returns metadata about the Coolify app that matches the current workspace.
+     * Safe to call first — gives the agent the UUID to use in subsequent calls.
+     */
+    register('coolify.api.getWorkspaceApp', async () => {
+        try {
+            const serverUrl = await configManager.getServerUrl();
+            const token = await configManager.getToken();
+            if (!serverUrl || !token) { return { error: 'Not configured' }; }
+
+            const matchedApps = statusBarManager.getMatchedApps();
+            if (matchedApps.length === 0) {
+                // Fallback: try to detect via git remote ourselves
+                const detected = await detectWorkspaceApp(configManager);
+                if (!detected) { return { error: 'No Coolify app matched to this workspace. Make sure the git remote matches an app in Coolify.' }; }
+                return detected;
+            }
+            // Return the best match (first if multiple)
+            const app = matchedApps[0];
+            return { uuid: app.uuid || app.id, name: app.name, status: app.status, fqdn: app.fqdn, git_branch: app.git_branch };
+        } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e) };
+        }
+    });
+
+    /**
+     * Fetches the runtime application logs for the workspace-matched Coolify app.
+     * No UUID needed — auto-detects via git remote.
+     * Returns the raw log text so the agent can read and fix issues.
+     */
+    register('coolify.api.getWorkspaceLogs', async () => {
+        try {
+            const serverUrl = await configManager.getServerUrl();
+            const token = await configManager.getToken();
+            if (!serverUrl || !token) { return { error: 'Not configured' }; }
+
+            const app = await getMatchedApp(configManager, statusBarManager);
+            if (!app || typeof app === 'object' && 'error' in app) { return app ?? { error: 'No matched app' }; }
+
+            const service = new CoolifyService(serverUrl, token);
+            const uuid = (app as Application).uuid || (app as Application).id;
+            const logs = await service.getApplicationLogs(uuid);
+            return { appName: (app as Application).name, uuid, logs: logs || '(no logs yet)' };
+        } catch (e) {
+            return { error: e instanceof Error ? e.message : String(e) };
+        }
+    });
+
+    /**
+     * Fetches build/deploy logs from the most recent deployment of the workspace app.
+     * Useful for diagnosing deployment failures.
+     */
+    register('coolify.api.getLatestDeploymentLogs', async () => {
+        try {
+            const serverUrl = await configManager.getServerUrl();
+            const token = await configManager.getToken();
+            if (!serverUrl || !token) { return { error: 'Not configured' }; }
+
+            const app = await getMatchedApp(configManager, statusBarManager);
+            if (!app || typeof app === 'object' && 'error' in app) { return app ?? { error: 'No matched app' }; }
+
+            const service = new CoolifyService(serverUrl, token);
+            const uuid = (app as Application).uuid || (app as Application).id;
+            const deployments = await service.getApplicationDeployments(uuid);
+
+            if (!deployments || deployments.length === 0) {
+                return { error: 'No deployments found for this app', appName: (app as Application).name };
+            }
+
+            // Most recent deployment first
+            const latest = deployments[0];
+            const detail = await service.getDeployment(latest.id);
+            return {
+                appName: (app as Application).name,
+                deploymentId: latest.id,
+                status: detail.status,
+                logs: detail.logs || '(no deploy logs)',
+            };
         } catch (e) {
             return { error: e instanceof Error ? e.message : String(e) };
         }
@@ -288,4 +382,65 @@ async function _appAction(
             }
         }
     );
+}
+
+/**
+ * Returns the Coolify app for the current workspace — first tries the status bar's
+ * already-cached match, then falls back to a fresh git remote + API lookup.
+ */
+async function getMatchedApp(
+    configManager: ConfigurationManager,
+    statusBarManager: StatusBarManager
+): Promise<Application | { error: string } | null> {
+    const cached = statusBarManager.getMatchedApps();
+    if (cached.length > 0) { return cached[0]; }
+    return detectWorkspaceApp(configManager);
+}
+
+/**
+ * Detects which Coolify app belongs to the current workspace by reading the
+ * git remote URL and matching it against all apps in Coolify.
+ * Returns the matched Application or null if nothing matched.
+ */
+async function detectWorkspaceApp(
+    configManager: ConfigurationManager
+): Promise<Application | { error: string } | null> {
+    const folders = vscode.workspace.workspaceFolders;
+    if (!folders || folders.length === 0) {
+        return { error: 'No workspace folder open' };
+    }
+
+    // Read the git remote for the current workspace
+    let remoteUrl: string | undefined;
+    try {
+        const { stdout } = await execAsync('git config --get remote.origin.url', { cwd: folders[0].uri.fsPath });
+        remoteUrl = stdout.trim().replace(/\.git$/, '').toLowerCase();
+    } catch {
+        return { error: 'Could not read git remote — is this a git repository?' };
+    }
+
+    if (!remoteUrl) { return { error: 'No git remote found' }; }
+
+    // Normalize: extract "owner/repo" from SSH or HTTPS URL
+    const normalizeUrl = (url: string) => {
+        const match = url.match(/[:/]([^/]+\/[^/]+)$/);
+        return match ? match[1].toLowerCase() : url;
+    };
+    const normalizedRemote = normalizeUrl(remoteUrl);
+
+    // Fetch all apps and find one whose git_repository matches
+    const serverUrl = await configManager.getServerUrl();
+    const token = await configManager.getToken();
+    if (!serverUrl || !token) { return { error: 'Not configured' }; }
+
+    const service = new CoolifyService(serverUrl, token);
+    const apps = await service.getApplications();
+
+    const matched = apps.find(a => {
+        if (!a.git_repository) { return false; }
+        const appRepo = normalizeUrl(a.git_repository.replace(/\.git$/, '').toLowerCase());
+        return normalizedRemote.endsWith(appRepo) || appRepo.endsWith(normalizedRemote);
+    });
+
+    return matched ?? { error: `No Coolify app found for remote: ${remoteUrl}` };
 }
